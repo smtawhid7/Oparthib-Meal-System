@@ -669,6 +669,45 @@
         .negative {
             color: #dc3545;
         }
+
+        /* Column colors for Meal Entry and Deposit Summary tables */
+        .col-person-0 { background: #e3f2fd !important; }
+        .col-person-1 { background: #f3e5f5 !important; }
+        .col-person-2 { background: #e8f5e9 !important; }
+        .col-person-3 { background: #fff3e0 !important; }
+        .col-person-4 { background: #fce4ec !important; }
+        .col-person-5 { background: #f1f8e9 !important; }
+        .col-person-6 { background: #e0f7fa !important; }
+        .col-person-7 { background: #fff8e1 !important; }
+        
+        /* Column colors for deposits (D1-D10) */
+        .col-deposit-0 { background: #e3f2fd !important; }
+        .col-deposit-1 { background: #f3e5f5 !important; }
+        .col-deposit-2 { background: #e8f5e9 !important; }
+        .col-deposit-3 { background: #fff3e0 !important; }
+        .col-deposit-4 { background: #fce4ec !important; }
+        .col-deposit-5 { background: #f1f8e9 !important; }
+        .col-deposit-6 { background: #e0f7fa !important; }
+        .col-deposit-7 { background: #fff8e1 !important; }
+        .col-deposit-8 { background: #efebe9 !important; }
+        .col-deposit-9 { background: #e8eaf6 !important; }
+        
+        /* Row colors for House Rent table */
+        .house-row-0 { background: #e3f2fd !important; }
+        .house-row-1 { background: #f3e5f5 !important; }
+        .house-row-2 { background: #e8f5e9 !important; }
+        .house-row-3 { background: #fff3e0 !important; }
+        .house-row-4 { background: #fce4ec !important; }
+        .house-row-5 { background: #f1f8e9 !important; }
+        .house-row-6 { background: #e0f7fa !important; }
+        .house-row-7 { background: #fff8e1 !important; }
+        
+        /* Locked cell style - for meals that have been entered */
+        .locked {
+            background: #f1f5f9 !important;
+            color: #64748b;
+            cursor: not-allowed;
+        }
     </style>
 </head>
 <body>
@@ -1220,28 +1259,32 @@
             const month = appData.currentMonth;
             if (!month) return;
 
-            const canEdit = isAdmin || isMonthEnabled(month);
+            const canEditMonth = isAdmin || isMonthEnabled(month);
             
             const daysInMonth = appData.months[month].meals[appData.persons[0]].length;
             let html = '<div class="table-wrapper"><table>';
             
-            // Header
+            // Header with column colors
             html += '<tr><th>Day</th>';
-            appData.persons.forEach(person => {
-                html += `<th>${person}</th>`;
+            appData.persons.forEach((person, idx) => {
+                html += `<th class="col-person-${idx % 8}">${person}</th>`;
             });
             html += '</tr>';
 
             // Data rows
             for (let day = 0; day < daysInMonth; day++) {
                 html += `<tr><td><strong>${day + 1}</strong></td>`;
-                appData.persons.forEach(person => {
+                appData.persons.forEach((person, idx) => {
                     const value = appData.months[month].meals[person][day];
-                    const editable = canEdit ? 'contenteditable' : '';
-                    const onchange = canEdit 
+                    const hasValue = value && value > 0;
+                    // User can only edit if: month enabled AND (isAdmin OR cell is empty)
+                    const canEditCell = canEditMonth && (isAdmin || !hasValue);
+                    const editable = canEditCell ? 'contenteditable' : '';
+                    const onchange = canEditCell 
                         ? `onblur="updateMeal('${person}', ${day}, this.innerText)"`
                         : '';
-                    html += `<td ${editable} ${onchange} class="${canEdit ? 'editable' : ''}">${value || ''}</td>`;
+                    const cellClass = `col-person-${idx % 8} ${canEditCell ? 'editable' : 'locked'}`;
+                    html += `<td ${editable} ${onchange} class="${cellClass}">${value || ''}</td>`;
                 });
                 html += '</tr>';
             }
@@ -1357,7 +1400,7 @@
 
             // Render deposit summary
             let depositHtml = '<div class="table-wrapper"><table style="font-size: 0.9rem;">';
-            depositHtml += '<tr><th>Name</th><th>D1</th><th>D2</th><th>D3</th><th>D4</th><th>D5</th><th>Total</th></tr>';
+            depositHtml += '<tr><th>Name</th><th class="col-deposit-0">D1</th><th class="col-deposit-1">D2</th><th class="col-deposit-2">D3</th><th class="col-deposit-3">D4</th><th class="col-deposit-4">D5</th><th>Total</th></tr>';
             
             const canEditDeposits = isAdmin; // Only admin can edit deposits
 
@@ -1371,7 +1414,7 @@
                     const onchange = canEditDeposits 
                         ? `onblur="updateDeposit('${person}', ${i}, this.innerText)"`
                         : '';
-                    depositHtml += `<td ${editable} ${onchange} class="${canEditDeposits ? 'editable' : ''}">${deposits[i] || 0}</td>`;
+                    depositHtml += `<td ${editable} ${onchange} class="col-deposit-${i} ${canEditDeposits ? 'editable' : ''}">${deposits[i] || 0}</td>`;
                 }
                 depositHtml += `<td style="background: #fff3cd; font-weight: bold;">${total}৳</td></tr>`;
             });
@@ -1429,10 +1472,10 @@
                     <tr><th>Person</th><th>Base</th><th>Utils</th><th>Total</th></tr>
             `;
             
-            appData.persons.forEach(person => {
+            appData.persons.forEach((person, idx) => {
                 const baseRent = house.rents[person] || 0;
                 const total = baseRent + totalUtilities;
-                html += `<tr>
+                html += `<tr class="house-row-${idx % 8}">
                     <td><strong>${person}</strong></td>
                     <td ${canEditHouse ? 'contenteditable onblur="updateRent(\'' + person + '\', this.innerText)" class="editable"' : ''}>${baseRent}</td>
                     <td>${totalUtilities}</td>
