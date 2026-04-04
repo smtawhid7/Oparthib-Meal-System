@@ -985,6 +985,7 @@
                         renderDeposits();
                         renderHouse();
                     }
+                    restoreSavedMonth();
                 } else {
                     // No data in Firebase, use localStorage or defaults
                     initDataLocal();
@@ -1027,6 +1028,8 @@
                 saveDataLocal();
             }
             updateMonthSelector();
+            // Restore saved month after data is loaded
+            restoreSavedMonth();
         }
 
         function saveDataLocal() {
@@ -1133,11 +1136,13 @@
             });
 
             initData();
+            // Month restoration now happens in initDataLocal() and loadDataFromFirebase()
         }
 
         function logout() {
             // Clear login state from localStorage
             localStorage.removeItem('mealAppSession');
+            localStorage.removeItem('mealAppCurrentMonth');
             currentUser = null;
             isAdmin = false;
             location.reload();
@@ -1720,6 +1725,23 @@
             }
         }
 
+        // Helper function to restore saved month after data is loaded
+        function restoreSavedMonth() {
+            const savedMonth = localStorage.getItem('mealAppCurrentMonth');
+            if (savedMonth && appData.months[savedMonth]) {
+                appData.currentMonth = savedMonth;
+                const monthSelect = document.getElementById('monthSelect');
+                if (monthSelect) {
+                    monthSelect.value = savedMonth;
+                    renderMeals();
+                    renderDeposits();
+                    renderHouse();
+                    updateExpensePersonSelect();
+                    console.log('Restored month:', savedMonth);
+                }
+            }
+        }
+
         // Allow Enter key for login
         document.getElementById('password')?.addEventListener('keypress', function(e) {
             if (e.key === 'Enter') login();
@@ -1739,23 +1761,6 @@
                 } catch (e) {
                     console.error('Error restoring session:', e);
                 }
-            }
-            
-            // Restore last selected month
-            const savedMonth = localStorage.getItem('mealAppCurrentMonth');
-            if (savedMonth && appData.months[savedMonth]) {
-                appData.currentMonth = savedMonth;
-                // Wait for UI to be ready, then select the month
-                setTimeout(() => {
-                    const monthSelect = document.getElementById('monthSelect');
-                    if (monthSelect) {
-                        monthSelect.value = savedMonth;
-                        renderMeals();
-                        renderDeposits();
-                        renderHouse();
-                        updateExpensePersonSelect();
-                    }
-                }, 100);
             }
         })();
     </script>
