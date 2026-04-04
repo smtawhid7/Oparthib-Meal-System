@@ -1026,19 +1026,6 @@
                 appData.months[monthName].meals[person] = new Array(daysInMonth).fill(0);
                 appData.months[monthName].deposits[person] = new Array(10).fill(0);
             });
-
-            // Add some sample expenses with person tracking
-            for (let i = 1; i <= 5; i++) {
-                const person = appData.persons[i % appData.persons.length];
-                appData.months[monthName].expenses.push({
-                    date: `${i} ${monthParts[0]}`,
-                    person: person,
-                    description: `Market ${i}`,
-                    amount: 500 + Math.floor(Math.random() * 500)
-                });
-                // Also add to deposits
-                appData.months[monthName].deposits[person][0] += appData.months[monthName].expenses[i-1].amount;
-            }
         }
 
         function isMonthEnabled(monthName) {
@@ -1147,7 +1134,8 @@
         function updateExpensePersonSelect() {
             const select = document.getElementById('expPerson');
             if (!select) return;
-            select.innerHTML = appData.persons.map(p => `<option value="${p}">${p}</option>`).join('');
+            select.innerHTML = '<option value="">-- Select Person --</option>' + 
+                appData.persons.map(p => `<option value="${p}">${p}</option>`).join('');
         }
 
         function addUserExpense() {
@@ -1253,7 +1241,7 @@
                     const onchange = canEdit 
                         ? `onblur="updateMeal('${person}', ${day}, this.innerText)"`
                         : '';
-                    html += `<td ${editable} ${onchange} class="${canEdit ? 'editable' : ''}">${value || 0}</td>`;
+                    html += `<td ${editable} ${onchange} class="${canEdit ? 'editable' : ''}">${value || ''}</td>`;
                 });
                 html += '</tr>';
             }
@@ -1274,6 +1262,7 @@
                         <h4>Quick Meal Entry</h4>
                         <div style="display: flex; gap: 10px; margin-top: 10px; flex-wrap: wrap;">
                             <select id="quickPerson" style="padding: 8px;">
+                                <option value="">-- Select Person --</option>
                                 ${appData.persons.map(p => `<option value="${p}">${p}</option>`).join('')}
                             </select>
                             <select id="quickDay" style="padding: 8px;">
