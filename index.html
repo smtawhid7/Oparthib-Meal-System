@@ -1064,7 +1064,7 @@
                 deposits: {},
                 expenses: [], // Each expense will have: {date, person, description, amount}
                 house: {
-                    utilities: { helping: 800, wifi: 210, gas: 400, electricity: 300, dust: 40 },
+                    utilities: { lift: 600, helping: 800, wifi: 210, gas: 400, electricity: 300, dust: 40 },
                     rents: { ...defaultRents }
                 },
                 enabled: true // New months are enabled by default
@@ -1492,9 +1492,10 @@
             let html = `
                 <h3>Monthly Utilities</h3>
                 <div class="table-wrapper"><table>
-                    <tr><th>Type</th><th>Helping</th><th>WIFI</th><th>Gas</th><th>Elec</th><th>Dust</th><th>Total</th></tr>
+                    <tr><th>Type</th><th>Lift</th><th>Helping</th><th>WIFI</th><th>Gas</th><th>Elec</th><th>Dust</th><th>Total</th></tr>
                     <tr>
                         <td>Amount</td>
+                        <td ${canEditHouse ? 'contenteditable onblur="updateHouseUtility(\'lift\', this.innerText)" class="editable"' : ''}>${house.utilities.lift}</td>
                         <td ${canEditHouse ? 'contenteditable onblur="updateHouseUtility(\'helping\', this.innerText)" class="editable"' : ''}>${house.utilities.helping}</td>
                         <td ${canEditHouse ? 'contenteditable onblur="updateHouseUtility(\'wifi\', this.innerText)" class="editable"' : ''}>${house.utilities.wifi}</td>
                         <td ${canEditHouse ? 'contenteditable onblur="updateHouseUtility(\'gas\', this.innerText)" class="editable"' : ''}>${house.utilities.gas}</td>
