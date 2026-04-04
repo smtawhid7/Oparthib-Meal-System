@@ -671,26 +671,26 @@
         }
 
         /* Column colors for Meal Entry and Deposit Summary tables */
-        .col-person-0 { background: #e3f2fd !important; }
-        .col-person-1 { background: #f3e5f5 !important; }
-        .col-person-2 { background: #e8f5e9 !important; }
-        .col-person-3 { background: #fff3e0 !important; }
-        .col-person-4 { background: #fce4ec !important; }
-        .col-person-5 { background: #f1f8e9 !important; }
-        .col-person-6 { background: #e0f7fa !important; }
-        .col-person-7 { background: #fff8e1 !important; }
+        .col-person-0 { background: #e3f2fd !important; color: #000 !important; }
+        .col-person-1 { background: #f3e5f5 !important; color: #000 !important; }
+        .col-person-2 { background: #e8f5e9 !important; color: #000 !important; }
+        .col-person-3 { background: #fff3e0 !important; color: #000 !important; }
+        .col-person-4 { background: #fce4ec !important; color: #000 !important; }
+        .col-person-5 { background: #f1f8e9 !important; color: #000 !important; }
+        .col-person-6 { background: #e0f7fa !important; color: #000 !important; }
+        .col-person-7 { background: #fff8e1 !important; color: #000 !important; }
         
         /* Column colors for deposits (D1-D10) */
-        .col-deposit-0 { background: #e3f2fd !important; }
-        .col-deposit-1 { background: #f3e5f5 !important; }
-        .col-deposit-2 { background: #e8f5e9 !important; }
-        .col-deposit-3 { background: #fff3e0 !important; }
-        .col-deposit-4 { background: #fce4ec !important; }
-        .col-deposit-5 { background: #f1f8e9 !important; }
-        .col-deposit-6 { background: #e0f7fa !important; }
-        .col-deposit-7 { background: #fff8e1 !important; }
-        .col-deposit-8 { background: #efebe9 !important; }
-        .col-deposit-9 { background: #e8eaf6 !important; }
+        .col-deposit-0 { background: #e3f2fd !important; color: #000 !important; }
+        .col-deposit-1 { background: #f3e5f5 !important; color: #000 !important; }
+        .col-deposit-2 { background: #e8f5e9 !important; color: #000 !important; }
+        .col-deposit-3 { background: #fff3e0 !important; color: #000 !important; }
+        .col-deposit-4 { background: #fce4ec !important; color: #000 !important; }
+        .col-deposit-5 { background: #f1f8e9 !important; color: #000 !important; }
+        .col-deposit-6 { background: #e0f7fa !important; color: #000 !important; }
+        .col-deposit-7 { background: #fff8e1 !important; color: #000 !important; }
+        .col-deposit-8 { background: #efebe9 !important; color: #000 !important; }
+        .col-deposit-9 { background: #e8eaf6 !important; color: #000 !important; }
         
         /* Row colors for House Rent table */
         .house-row-0 { background: #e3f2fd !important; }
@@ -1063,7 +1063,7 @@
             // Initialize meal data for all persons
             appData.persons.forEach(person => {
                 appData.months[monthName].meals[person] = new Array(daysInMonth).fill(0);
-                appData.months[monthName].deposits[person] = new Array(10).fill(0);
+                appData.months[monthName].deposits[person] = new Array(6).fill(0); // D1-D5 + Personal D
             });
         }
 
@@ -1203,20 +1203,9 @@
                 amount: amount
             });
             
-            // Auto-add to deposits (first empty slot or last slot)
+            // Add to Personal D column (index 5) - accumulates all user expenses
             const deposits = appData.months[month].deposits[person];
-            let added = false;
-            for (let i = 0; i < deposits.length; i++) {
-                if (!deposits[i] || deposits[i] === 0) {
-                    deposits[i] = amount;
-                    added = true;
-                    break;
-                }
-            }
-            if (!added) {
-                // If no empty slot, add to last slot
-                deposits[deposits.length - 1] += amount;
-            }
+            deposits[5] = (deposits[5] || 0) + amount;
             
             // Clear inputs
             document.getElementById('expDesc').value = '';
@@ -1400,7 +1389,7 @@
 
             // Render deposit summary
             let depositHtml = '<div class="table-wrapper"><table style="font-size: 0.9rem;">';
-            depositHtml += '<tr><th>Name</th><th class="col-deposit-0">D1</th><th class="col-deposit-1">D2</th><th class="col-deposit-2">D3</th><th class="col-deposit-3">D4</th><th class="col-deposit-4">D5</th><th>Total</th></tr>';
+            depositHtml += '<tr><th>Name</th><th class="col-deposit-0">D1</th><th class="col-deposit-1">D2</th><th class="col-deposit-2">D3</th><th class="col-deposit-3">D4</th><th class="col-deposit-4">D5</th><th class="col-deposit-5">Personal D</th><th>Total</th></tr>';
             
             const canEditDeposits = isAdmin; // Only admin can edit deposits
 
@@ -1409,7 +1398,7 @@
                 const total = deposits.reduce((a, b) => a + (b || 0), 0);
                 
                 depositHtml += `<tr><td><strong>${person}</strong></td>`;
-                for (let i = 0; i < 5; i++) {
+                for (let i = 0; i < 6; i++) {
                     const editable = canEditDeposits ? 'contenteditable' : '';
                     const onchange = canEditDeposits 
                         ? `onblur="updateDeposit('${person}', ${i}, this.innerText)"`
@@ -1426,7 +1415,7 @@
             });
             
             depositHtml += `<tr style="background: #667eea; color: white; font-weight: bold;">
-                <td colspan="6">Grand Total</td>
+                <td colspan="7">Grand Total</td>
                 <td>${grandTotalDeposits}৳</td>
             </tr>`;
 
@@ -1652,7 +1641,7 @@
             Object.keys(appData.months).forEach(month => {
                 const daysInMonth = appData.months[month].meals[appData.persons[0]].length;
                 appData.months[month].meals[name] = new Array(daysInMonth).fill(0);
-                appData.months[month].deposits[name] = new Array(10).fill(0);
+                appData.months[month].deposits[name] = new Array(6).fill(0); // D1-D5 + Personal D
                 appData.months[month].house.rents[name] = 0;
             });
 
