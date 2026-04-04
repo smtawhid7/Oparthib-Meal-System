@@ -1023,6 +1023,8 @@
             const saved = localStorage.getItem('mealAppData');
             if (saved) {
                 appData = JSON.parse(saved);
+                // Migration: Ensure all months have lift property in utilities
+                migrateLiftProperty();
             } else {
                 createMonthData('March 2025');
                 saveDataLocal();
@@ -1030,6 +1032,24 @@
             updateMonthSelector();
             // Restore saved month after data is loaded
             restoreSavedMonth();
+        }
+
+        // Migration: Add lift property to utilities if missing
+        function migrateLiftProperty() {
+            let migrated = false;
+            Object.keys(appData.months).forEach(monthName => {
+                const month = appData.months[monthName];
+                if (month.house && month.house.utilities) {
+                    if (month.house.utilities.lift === undefined) {
+                        month.house.utilities.lift = 600;
+                        migrated = true;
+                    }
+                }
+            });
+            if (migrated) {
+                console.log('Migrated: Added lift property to existing months');
+                saveDataLocal();
+            }
         }
 
         function saveDataLocal() {
