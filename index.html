@@ -1100,10 +1100,14 @@
             if (username === 'admin' && password === 'Dorameal@123') {
                 currentUser = username;
                 isAdmin = true;
+                // Save login state to localStorage
+                localStorage.setItem('mealAppSession', JSON.stringify({ user: username, isAdmin: true }));
                 showMainApp();
             } else if (username === 'user' && password === 'Takade@123') {
                 currentUser = username;
                 isAdmin = false;
+                // Save login state to localStorage
+                localStorage.setItem('mealAppSession', JSON.stringify({ user: username, isAdmin: false }));
                 showMainApp();
             } else {
                 showToast('Invalid username or password!', 'error');
@@ -1125,6 +1129,10 @@
         }
 
         function logout() {
+            // Clear login state from localStorage
+            localStorage.removeItem('mealAppSession');
+            currentUser = null;
+            isAdmin = false;
             location.reload();
         }
 
@@ -1217,10 +1225,23 @@
         }
 
         function deleteExpense(idx) {
-            if (!confirm('Are you sure? This will remove the expense but NOT adjust deposits.')) return;
-            appData.months[appData.currentMonth].expenses.splice(idx, 1);
+            const month = appData.currentMonth;
+            const expense = appData.months[month].expenses[idx];
+            if (!expense) return;
+            
+            if (!confirm(`Are you sure? This will remove the expense and deduct ${expense.amount}৳ from ${expense.person}'s Personal D.`)) return;
+            
+            // Deduct from Personal D column (index 5)
+            const deposits = appData.months[month].deposits[expense.person];
+            if (deposits && deposits[5]) {
+                deposits[5] = Math.max(0, deposits[5] - expense.amount);
+            }
+            
+            // Remove the expense
+            appData.months[month].expenses.splice(idx, 1);
             saveData();
             renderDeposits();
+            showToast(`Expense deleted and ${expense.amount}৳ deducted from ${expense.person}'s Personal D.`);
         }
 
         function createNewMonth() {
@@ -1681,6 +1702,23 @@
         document.getElementById('password')?.addEventListener('keypress', function(e) {
             if (e.key === 'Enter') login();
         });
+
+        // Check for saved session on page load
+        (function checkSavedSession() {
+            const savedSession = localStorage.getItem('mealAppSession');
+            if (savedSession) {
+                try {
+                    const session = JSON.parse(savedSession);
+                    if (session.user && session.isAdmin !== undefined) {
+                        currentUser = session.user;
+                        isAdmin = session.isAdmin;
+                        showMainApp();
+                    }
+                } catch (e) {
+                    console.error('Error restoring session:', e);
+                }
+            }
+        })();
     </script>
 </body>
 </html>
