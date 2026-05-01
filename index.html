@@ -2330,21 +2330,45 @@
 
         function addPerson() {
             const name = document.getElementById('newPersonName').value.trim();
-            if (!name) return;
+            if (!name) {
+                showToast('Please enter a name!', 'error');
+                return;
+            }
+            
+            // Check if person already exists
+            if (appData.persons.includes(name)) {
+                showToast('Person already exists!', 'error');
+                return;
+            }
             
             appData.persons.push(name);
             
             // Add to all months
             Object.keys(appData.months).forEach(month => {
-                const daysInMonth = appData.months[month].meals[appData.persons[0]].length;
-                appData.months[month].meals[name] = new Array(daysInMonth).fill(0);
-                appData.months[month].deposits[name] = new Array(6).fill(0); // D1-D5 + Personal D
-                appData.months[month].house.rents[name] = 0;
+                const monthData = appData.months[month];
+                let daysInMonth = 30; // default
+                
+                // Try to get days from existing person's meal data
+                const firstPerson = appData.persons[0];
+                if (firstPerson && monthData.meals[firstPerson]) {
+                    daysInMonth = monthData.meals[firstPerson].length;
+                } else if (monthData.meals && Object.keys(monthData.meals).length > 0) {
+                    // Try any existing person
+                    const anyPerson = Object.keys(monthData.meals)[0];
+                    if (monthData.meals[anyPerson]) {
+                        daysInMonth = monthData.meals[anyPerson].length;
+                    }
+                }
+                
+                monthData.meals[name] = new Array(daysInMonth).fill(0);
+                monthData.deposits[name] = new Array(6).fill(0); // D1-D5 + Personal D
+                monthData.house.rents[name] = 0;
             });
 
             saveData();
             document.getElementById('newPersonName').value = '';
             renderAdminPanel();
+            showToast(`Added ${name} successfully!`, 'success');
             if (appData.currentMonth) {
                 renderMeals();
                 renderDeposits();
