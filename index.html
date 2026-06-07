@@ -1775,9 +1775,243 @@
         let currentUser = null;
         let isAdmin = false;
 
-        // Firebase data sync
+        // Firebase data sync - Improved Structure
         const APP_DATA_DOC = 'appData';
+        const BACKUP_COLLECTION = 'backups';
         let isLoadingFromFirebase = false;
+        
+        // Database structure validation
+        const validateAppData = (data) => {
+            const errors = [];
+            
+            if (!data.persons || !Array.isArray(data.persons)) {
+                errors.push('Invalid persons data');
+            }
+            
+            if (!data.months || typeof data.months !== 'object') {
+                errors.push('Invalid months data');
+            } else {
+                // Validate each month
+                Object.keys(data.months).forEach(monthName => {
+                    const month = data.months[monthName];
+                    if (!month.meals || !month.deposits || !month.house) {
+                        errors.push(`Invalid structure for month: ${monthName}`);
+                    }
+                });
+            }
+            
+            return errors;
+        };
+        
+        // Create backup before major changes
+        const createBackup = async () => {
+            if (!window.firebaseDB) return;
+            
+            try {
+                const backupData = {
+                    ...appData,
+                    backupAt: new Date().toISOString(),
+                    backupType: 'manual_structure_cleanup'
+                };
+                
+                const backupId = `backup_${Date.now()}`;
+                await window.firebaseSetDoc(
+                    window.firebaseDoc(window.firebaseDB, BACKUP_COLLECTION, backupId), 
+                    backupData
+                );
+                console.log('Backup created:', backupId);
+                return backupId;
+            } catch (error) {
+                console.error('Backup failed:', error);
+                return null;
+            }
+        };
+        
+        // Clean up corrupted data
+        const cleanupDatabase = async () => {
+            if (!window.firebaseDB) return;
+            
+            showLoading();
+            showToast('Cleaning up database...', 'info');
+            
+            try {
+                // Create backup first
+                const backupId = await createBackup();
+                if (!backupId) {
+                    showToast('Backup failed, aborting cleanup', 'error');
+                    return;
+                }
+                
+                // Clean up persons array
+                appData.persons = appData.persons.filter(p => p && typeof p === 'string' && p.trim().length > 0);
+                
+                // Clean up months data
+                const cleanedMonths = {};
+                Object.keys(appData.months).forEach(monthName => {
+                    const month = appData.months[monthName];
+                    
+                    // Validate month structure
+                    if (month && month.meals && month.deposits && month.house) {
+                        cleanedMonths[monthName] = {
+                            meals: {},
+                            deposits: {},
+                            expenses: Array.isArray(month.expenses) ? month.expenses.filter(e => 
+                                e && e.person && e.description && typeof e.amount === 'number'
+                            ) : [],
+                            house: {
+                                utilities: {
+                                    lift: Number(month.house.utilities?.lift) || 600,
+                                    helping: Number(month.house.utilities?.helping) || 800,
+                                    wifi: Number(month.house.utilities?.wifi) || 210,
+                                    gas: Number(month.house.utilities?.gas) || 400,
+                                    electricity: Number(month.house.utilities?.electricity) || 300,
+                                    dust: Number(month.house.utilities?.dust) || 40
+                                },
+                                rents: {}
+                            },
+                            enabled: month.enabled !== false
+                        };
+                        
+                        // Clean up meal data for each person
+                        appData.persons.forEach(person => {
+                            if (month.meals[person] && Array.isArray(month.meals[person])) {
+                                cleanedMonths[monthName].meals[person] = month.meals[person].map(m => 
+                                    typeof m === 'number' ? m : 0
+                                );
+                            }
+                            
+                            if (month.deposits[person] && Array.isArray(month.deposits[person])) {
+                                cleanedMonths[monthName].deposits[person] = month.deposits[person].map(d => 
+                                    typeof d === 'number' ? d : 0
+                                );
+                            }
+                            
+                            // Clean up rent data
+                            cleanedMonths[monthName].house.rents[person] = 
+                                Number(month.house.rents?.[person]) || 0;
+                        });
+                    }
+                });
+                
+                appData.months = cleanedMonths;
+                
+                // Save cleaned data
+                await saveDataToFirebase();
+                
+                // Update UI
+                updateMonthSelector();
+                if (appData.currentMonth) {
+                    renderMeals();
+                    renderDeposits();
+                    renderHouse();
+                }
+                
+                hideLoading();
+                showToast('Database cleaned successfully!', 'success');
+                console.log('Database cleanup completed');
+                
+            } catch (error) {
+                hideLoading();
+                console.error('Cleanup failed:', error);
+                showToast('Database cleanup failed!', 'error');
+            }
+        };
+        
+        // Restore from backup
+        const restoreFromBackup = async (backupId) => {
+            if (!window.firebaseDB || !backupId) return;
+            
+            if (!confirm('Are you sure? This will replace all current data with the backup.')) {
+                return;
+            }
+            
+            showLoading();
+            try {
+                const backupDoc = await window.firebaseGetDoc(
+                    window.firebaseDoc(window.firebaseDB, BACKUP_COLLECTION, backupId)
+                );
+                
+                if (backupDoc.exists()) {
+                    const backupData = backupDoc.data();
+                    appData.persons = backupData.persons || [...defaultPersons];
+                    appData.months = backupData.months || {};
+                    
+                    await saveDataToFirebase();
+                    updateMonthSelector();
+                    restoreSavedMonth();
+                    
+                    hideLoading();
+                    showToast('Data restored from backup!', 'success');
+                } else {
+                    hideLoading();
+                    showToast('Backup not found!', 'error');
+                }
+            } catch (error) {
+                hideLoading();
+                console.error('Restore failed:', error);
+                showToast('Restore failed!', 'error');
+            }
+        };
+        
+        // Show database information
+        const showDatabaseInfo = async () => {
+            if (!window.firebaseDB) {
+                showToast('Firebase not connected!', 'error');
+                return;
+            }
+            
+            let info = '📊 Database Information\n\n';
+            info += `👥 Persons: ${appData.persons.length}\n`;
+            info += `📅 Months: ${Object.keys(appData.months).length}\n`;
+            
+            let totalExpenses = 0;
+            let totalMeals = 0;
+            let totalDeposits = 0;
+            
+            Object.keys(appData.months).forEach(monthName => {
+                const month = appData.months[monthName];
+                if (month.expenses) {
+                    totalExpenses += month.expenses.reduce((sum, exp) => sum + (exp.amount || 0), 0);
+                }
+                
+                if (month.meals) {
+                    Object.values(month.meals).forEach(mealArray => {
+                        if (Array.isArray(mealArray)) {
+                            totalMeals += mealArray.reduce((sum, meals) => sum + (meals || 0), 0);
+                        }
+                    });
+                }
+                
+                if (month.deposits) {
+                    Object.values(month.deposits).forEach(depositArray => {
+                        if (Array.isArray(depositArray)) {
+                            totalDeposits += depositArray.reduce((sum, deposit) => sum + (deposit || 0), 0);
+                        }
+                    });
+                }
+            });
+            
+            info += `💰 Total Expenses: ৳${totalExpenses.toFixed(0)}\n`;
+            info += `🍽️ Total Meals: ${totalMeals}\n`;
+            info += `💵 Total Deposits: ৳${totalDeposits.toFixed(0)}\n\n`;
+            
+            // Validation status
+            const validationErrors = validateAppData(appData);
+            if (validationErrors.length === 0) {
+                info += '✅ Database Structure: Valid\n';
+            } else {
+                info += `⚠️ Database Structure: ${validationErrors.length} issues found\n`;
+                validationErrors.forEach(error => {
+                    info += `   - ${error}\n`;
+                });
+            }
+            
+            // Firebase connection status
+            info += `🔗 Firebase: Connected\n`;
+            info += `📅 Last Updated: ${new Date().toLocaleString()}`;
+            
+            alert(info);
+        };
 
         async function saveDataToFirebase() {
             if (!window.firebaseDB || isLoadingFromFirebase) return;
@@ -1808,8 +2042,19 @@
                 const docSnap = await window.firebaseGetDoc(window.firebaseDoc(window.firebaseDB, 'mealApp', APP_DATA_DOC));
                 if (docSnap.exists()) {
                     const data = docSnap.data();
+                    
+                    // Validate data structure
+                    const validationErrors = validateAppData(data);
+                    if (validationErrors.length > 0) {
+                        console.warn('Data validation errors:', validationErrors);
+                        if (isAdmin) {
+                            showToast('Database has structural issues. Consider running cleanup.', 'error');
+                        }
+                    }
+                    
                     appData.persons = data.persons || [...defaultPersons];
                     appData.months = data.months || {};
+                    
                     console.log('Data loaded from Firebase');
                     updateMonthSelector();
                     if (appData.currentMonth) {
@@ -1826,6 +2071,7 @@
                 }
             } catch (error) {
                 console.error('Error loading from Firebase:', error);
+                showToast('Failed to load data from Firebase', 'error');
                 initDataLocal();
             } finally {
                 isLoadingFromFirebase = false;
@@ -2492,7 +2738,32 @@
         }
 
         function renderAdminPanel() {
-            let html = '<h3 style="margin: 24px 0 16px 0;"><span>📅</span> Month Management</h3>';
+            let html = '<h3 style="margin: 24px 0 16px 0;"><span>🔧</span> Database Management</h3>';
+            html += '<p style="color: #64748b; margin-bottom: 16px; font-size: 0.9rem;">Clean up and maintain database integrity:</p>';
+            
+            html += `
+                <div style="background: #fef3c7; border: 1px solid #f59e0b; border-radius: 8px; padding: 16px; margin-bottom: 20px;">
+                    <h4 style="color: #92400e; margin-bottom: 12px;">⚠️ Database Tools</h4>
+                    <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                        <button class="btn btn-warning" onclick="cleanupDatabase()" style="background: #f59e0b;">
+                            <span>🧹</span> Clean Database
+                        </button>
+                        <button class="btn btn-primary" onclick="createBackup()" style="background: #3b82f6;">
+                            <span>💾</span> Create Backup
+                        </button>
+                        <button class="btn btn-info" onclick="showDatabaseInfo()" style="background: #06b6d4;">
+                            <span>ℹ️</span> Database Info
+                        </button>
+                    </div>
+                    <p style="color: #92400e; font-size: 0.8rem; margin-top: 12px;">
+                        <strong>Clean Database:</strong> Removes corrupted data, fixes structure, and optimizes storage.<br>
+                        <strong>Create Backup:</strong> Creates a safety backup before major changes.<br>
+                        <strong>Database Info:</strong> Shows current database statistics and health.
+                    </p>
+                </div>
+            `;
+            
+            html += '<h3 style="margin: 32px 0 16px 0;"><span>📅</span> Month Management</h3>';
             html += '<p style="color: #64748b; margin-bottom: 16px; font-size: 0.9rem;">Enable/disable months for user editing:</p>';
             
             Object.keys(appData.months).forEach(month => {
