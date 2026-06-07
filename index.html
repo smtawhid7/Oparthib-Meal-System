@@ -1741,23 +1741,40 @@
             measurementId: "G-DM4T4WC85Y"
         };
 
-        // Initialize Firebase
-        const app = initializeApp(firebaseConfig);
-        const db = getFirestore(app);
-        
-        // Make Firebase available globally
-        window.firebaseDB = db;
-        window.firebaseDoc = doc;
-        window.firebaseSetDoc = setDoc;
-        window.firebaseGetDoc = getDoc;
-        window.firebaseOnSnapshot = onSnapshot;
-        window.firebaseDeleteDoc = deleteDoc;
-        window.firebaseCollection = collection;
-        
-        // Load data from Firebase when ready
-        window.firebaseInitialized = true;
-        if (typeof loadDataFromFirebase === 'function') {
-            loadDataFromFirebase();
+        // Initialize Firebase with error handling
+        try {
+            const app = initializeApp(firebaseConfig);
+            const db = getFirestore(app);
+            
+            // Make Firebase available globally
+            window.firebaseDB = db;
+            window.firebaseDoc = doc;
+            window.firebaseSetDoc = setDoc;
+            window.firebaseGetDoc = getDoc;
+            window.firebaseOnSnapshot = onSnapshot;
+            window.firebaseDeleteDoc = deleteDoc;
+            window.firebaseCollection = collection;
+            
+            // Test Firebase connection
+            console.log('Firebase initialized successfully');
+            
+            // Load data from Firebase when ready
+            window.firebaseInitialized = true;
+            if (typeof loadDataFromFirebase === 'function') {
+                // Add a small delay to ensure Firebase is fully ready
+                setTimeout(() => {
+                    loadDataFromFirebase();
+                }, 100);
+            }
+        } catch (error) {
+            console.error('Firebase initialization failed:', error);
+            window.firebaseDB = null;
+            window.firebaseInitialized = false;
+            
+            // Fallback to localStorage
+            if (typeof initDataLocal === 'function') {
+                initDataLocal();
+            }
         }
     </script>
 
@@ -2032,6 +2049,7 @@
 
         async function loadDataFromFirebase() {
             if (!window.firebaseDB) {
+                console.log('Firebase not ready, using localStorage');
                 // Firebase not ready, use localStorage
                 initDataLocal();
                 return;
@@ -2039,9 +2057,12 @@
             
             isLoadingFromFirebase = true;
             try {
+                console.log('Attempting to load data from Firebase...');
                 const docSnap = await window.firebaseGetDoc(window.firebaseDoc(window.firebaseDB, 'mealApp', APP_DATA_DOC));
+                
                 if (docSnap.exists()) {
                     const data = docSnap.data();
+                    console.log('Firebase data found:', data);
                     
                     // Validate data structure
                     const validationErrors = validateAppData(data);
@@ -2055,7 +2076,7 @@
                     appData.persons = data.persons || [...defaultPersons];
                     appData.months = data.months || {};
                     
-                    console.log('Data loaded from Firebase');
+                    console.log('Data loaded successfully from Firebase');
                     updateMonthSelector();
                     if (appData.currentMonth) {
                         renderMeals();
@@ -2064,6 +2085,7 @@
                     }
                     restoreSavedMonth();
                 } else {
+                    console.log('No data in Firebase, initializing with defaults');
                     // No data in Firebase, use localStorage or defaults
                     initDataLocal();
                     // Save to Firebase
@@ -2071,7 +2093,13 @@
                 }
             } catch (error) {
                 console.error('Error loading from Firebase:', error);
-                showToast('Failed to load data from Firebase', 'error');
+                console.log('Falling back to localStorage due to Firebase error');
+                
+                // Only show error toast if it's not a network/common error
+                if (!error.message.includes('network') && !error.message.includes('unavailable')) {
+                    showToast('Firebase connection issue. Using local storage.', 'info');
+                }
+                
                 initDataLocal();
             } finally {
                 isLoadingFromFirebase = false;
@@ -2081,19 +2109,46 @@
         // Listen for real-time updates
         function setupFirebaseListener() {
             if (!window.firebaseDB) return;
-            window.firebaseOnSnapshot(window.firebaseDoc(window.firebaseDB, 'mealApp', APP_DATA_DOC), (doc) => {
-                if (doc.exists() && !isLoadingFromFirebase) {
-                    const data = doc.data();
-                    appData.persons = data.persons || appData.persons;
-                    appData.months = data.months || appData.months;
-                    updateMonthSelector();
-                    if (appData.currentMonth) {
-                        renderMeals();
-                        renderDeposits();
-                        renderHouse();
+            
+            try {
+                window.firebaseOnSnapshot(window.firebaseDoc(window.firebaseDB, 'mealApp', APP_DATA_DOC), (doc) => {
+                    if (doc.exists() && !isLoadingFromFirebase) {
+                        const data = doc.data();
+                        appData.persons = data.persons || appData.persons;
+                        appData.months = data.months || appData.months;
+                        updateMonthSelector();
+                        if (appData.currentMonth) {
+                            renderMeals();
+                            renderDeposits();
+                            renderHouse();
+                        }
                     }
+                });
+                console.log('Firebase listener setup successful');
+            } catch (error) {
+                console.error('Failed to setup Firebase listener:', error);
+            }
+        }
+        
+        // Retry Firebase connection if it fails
+        let retryCount = 0;
+        const maxRetries = 3;
+        
+        function retryFirebaseConnection() {
+            if (retryCount >= maxRetries) {
+                console.log('Max Firebase connection retries reached');
+                return;
+            }
+            
+            retryCount++;
+            console.log(`Retrying Firebase connection (${retryCount}/${maxRetries})`);
+            
+            setTimeout(() => {
+                if (window.firebaseDB) {
+                    loadDataFromFirebase();
+                    setupFirebaseListener();
                 }
-            });
+            }, 2000 * retryCount); // Exponential backoff
         }
 
         // Initialize with localStorage backup
