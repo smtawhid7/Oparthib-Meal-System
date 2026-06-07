@@ -2114,6 +2114,9 @@
                         renderHouse();
                     }
                     restoreSavedMonth();
+
+                    // Persist the fresh data locally so non-admins get the latest state
+                    saveDataLocal();
                 } else {
                     console.log('No data in Firebase, initializing with defaults');
                     // No data in Firebase, use localStorage or defaults
@@ -2152,6 +2155,9 @@
                             renderDeposits();
                             renderHouse();
                         }
+
+                        // Keep local storage in sync for regular users
+                        saveDataLocal();
                     }
                 });
                 console.log('Firebase listener setup successful');
@@ -2442,7 +2448,10 @@
         }
 
         function createNewMonth() {
-            const monthName = prompt('Enter new month name (e.g., April 2025):');
+            const rawInput = prompt('Enter new month name (e.g., April 2025):');
+            if (!rawInput) return;
+
+            const monthName = rawInput.trim().replace(/\s+/g, ' ');
             if (!monthName) return;
             
             if (appData.months[monthName]) {
@@ -2451,6 +2460,7 @@
             }
 
             createMonthData(monthName);
+            appData.months[monthName].enabled = true;
             saveData();
             updateMonthSelector();
             document.getElementById('monthSelect').value = monthName;
