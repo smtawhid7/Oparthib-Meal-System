@@ -1729,6 +1729,7 @@
         // Import the functions you need from the SDKs you need
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
         import { getFirestore, doc, setDoc, getDoc, onSnapshot, collection, deleteDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
         // Your web app's Firebase configuration
         const firebaseConfig = {
@@ -1741,11 +1742,12 @@
             measurementId: "G-DM4T4WC85Y"
         };
 
-        // Initialize Firebase with error handling
+        // Initialize Firebase with error handling and anonymous auth
         try {
             const app = initializeApp(firebaseConfig);
             const db = getFirestore(app);
-            
+            const auth = getAuth(app);
+
             // Make Firebase available globally
             window.firebaseDB = db;
             window.firebaseDoc = doc;
@@ -1754,23 +1756,51 @@
             window.firebaseOnSnapshot = onSnapshot;
             window.firebaseDeleteDoc = deleteDoc;
             window.firebaseCollection = collection;
-            
-            // Test Firebase connection
-            console.log('Firebase initialized successfully');
-            
-            // Load data from Firebase when ready
-            window.firebaseInitialized = true;
-            if (typeof loadDataFromFirebase === 'function') {
-                // Add a small delay to ensure Firebase is fully ready
-                setTimeout(() => {
+            window.firebaseAuth = auth;
+
+            window.firebaseInitialized = false;
+            let authReadyFired = false;
+
+            const onAuthReady = (user) => {
+                if (!user) {
+                    return;
+                }
+                if (authReadyFired) {
+                    return;
+                }
+                authReadyFired = true;
+                window.firebaseInitialized = true;
+                console.log('Firebase initialized and authenticated anonymously');
+
+                if (typeof loadDataFromFirebase === 'function') {
                     loadDataFromFirebase();
-                }, 100);
-            }
+                }
+                if (typeof setupFirebaseListener === 'function') {
+                    setupFirebaseListener();
+                }
+            };
+
+            onAuthStateChanged(auth, (user) => {
+                if (user) {
+                    onAuthReady(user);
+                } else {
+                    signInAnonymously(auth).catch((error) => {
+                        console.error('Anonymous auth failed:', error);
+                    });
+                }
+            });
+
+            // Kick off auth flow immediately
+            signInAnonymously(auth).catch((error) => {
+                if (error.code !== 'auth/operation-not-allowed') {
+                    console.error('Anonymous sign-in attempt failed:', error);
+                }
+            });
         } catch (error) {
             console.error('Firebase initialization failed:', error);
             window.firebaseDB = null;
             window.firebaseInitialized = false;
-            
+
             // Fallback to localStorage
             if (typeof initDataLocal === 'function') {
                 initDataLocal();
